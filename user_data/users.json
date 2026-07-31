@@ -1,0 +1,18 @@
+{
+  "vasanth@gmail.com": {
+    "password_hash": "$2b$12$dgATlnx22ej00P6hdHPnROstMLGRJ.M93FXBoXczpX3JEk0yBxfQu",
+    "name": "Vasanth"
+  },
+  "Vasanth12@gmail.com": {
+    "password_hash": "$2b$12$30gq..1w2MhSo9kSB6/JL.z6QxGsVJdEQhJK6JBD9fBR0HDpwwnhq",
+    "name": "Vasant"
+  },
+  "usermail@gmail.com": {
+    "password_hash": "$2b$12$c7NhVqP5KhH8tyWSAJiYEekx3/Nlmmmok4QrIWmNiCVWZVZYi4Voy",
+    "name": "demouser"
+  },
+  "hellomail@gmail.com": {
+    "password_hash": "$2b$12$rY2EQQ.GlPTZCX30uJE86e1stfoiXZTEi9msVnJVNyW7EUdkjbmbO",
+    "name": "Hellomail"
+  }
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "filename": "iea_1872.pdf",
+    "cleaned_path": "C:\\Users\\deeks\\OneDrive\\Desktop\\legal-case-retrieval\\scripts\\..\\data\\processed\\iea_1872.txt",
+    "num_chars": 176873
+  },
+  {
+    "filename": "Information_Technology_Act.pdf",
+    "cleaned_path": "C:\\Users\\deeks\\OneDrive\\Desktop\\legal-case-retrieval\\scripts\\..\\data\\processed\\Information_Technology_Act.txt",
+    "num_chars": 123781
+  },
+  {
+    "filename": "IPC.pdf",
+    "cleaned_path": "C:\\Users\\deeks\\OneDrive\\Desktop\\legal-case-retrieval\\scripts\\..\\data\\processed\\IPC.txt",
+    "num_chars": 477233
+  }
+]
