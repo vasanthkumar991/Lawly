@@ -1,0 +1,5 @@
+streamlit
+google-generativeai
+pinecone-client
+bcrypt
+python-dotenv

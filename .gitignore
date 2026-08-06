@@ -2,8 +2,33 @@
 .env.*
 **/.env
 **/.env.*
+
+# Python cache and local tool folders
 __pycache__/
 **/__pycache__/
 *.pyc
 *.pyo
 *.pyd
+venv/
+.venv/
+. files/
+.files/
+
+# Local project backups and generated outputs
+backup/
+*.log
+
+# Large/local artifacts that should not be committed directly
+*.pdf
+*.zip
+*.tar
+*.gz
+
+# Local app data
+user_data/
+output_chunks/
+preprocessed/
+
+# Keep tracked project config only
+!README.md
+!requirements.txt

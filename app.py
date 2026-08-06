@@ -1,12 +1,19 @@
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 from pinecone import Pinecone
 from typing import List, Dict, Tuple
 from datetime import datetime
+from pathlib import Path
 import html
 import re
 import os
 import json
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+for env_path in [BASE_DIR / ".env", BASE_DIR / "scripts" / ".env"]:
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
 # Import bcrypt-safe auth helpers from authentication.py
 from authentication import create_user, verify_user, load_users, save_users
@@ -21,7 +28,10 @@ INDEX_NAME = "legal-cases"
 TOP_K = 4
 
 if not GEMINI_API_KEY or not PINECONE_API_KEY:
-    raise RuntimeError("Missing GEMINI_API_KEY and/or PINECONE_API_KEY environment variables.")
+    raise RuntimeError(
+        "Missing GEMINI_API_KEY and/or PINECONE_API_KEY environment variables. "
+        "Set them in your shell or create a local .env file in the project root."
+    )
 
 # Data dir for per-user persistence (local dev)
 DATA_DIR = "./user_data"
@@ -29,17 +39,33 @@ os.makedirs(DATA_DIR, exist_ok=True)
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 
 # -----------------------
-# Helpers: OpenAI / Pinecone
+# Helpers: Gemini / Pinecone
 # -----------------------
-def init_clients(openai_api_key: str, pinecone_api_key: str, pinecone_env: str) -> Tuple[OpenAI, Pinecone]:
-    openai_client = OpenAI(api_key=openai_api_key)
+def init_clients(gemini_api_key: str, pinecone_api_key: str, pinecone_env: str):
+    genai.configure(api_key=gemini_api_key)
     pc = Pinecone(api_key=pinecone_api_key)
-    return openai_client, pc
+    return genai, pc
 
-def pinecone_query(openai_client: OpenAI, pc: Pinecone, index_name: str, query_text: str, top_k: int = 4):
+
+def embed_text_with_gemini(query_text: str):
+    response = genai.embed_content(
+        model="models/gemini-embedding-001",
+        content=query_text,
+        task_type="retrieval_query",
+    )
+    if isinstance(response, dict):
+        embedding = response.get("embedding")
+        if embedding is not None:
+            return embedding
+    embedding = getattr(response, "embedding", None)
+    if embedding is not None:
+        return embedding
+    raise ValueError("Could not extract embedding from Gemini response.")
+
+
+def pinecone_query(openai_client, pc: Pinecone, index_name: str, query_text: str, top_k: int = 4):
     index = pc.Index(index_name)
-    emb_resp = openai_client.embeddings.create(model="text-embedding-3-small", input=query_text)
-    query_vector = emb_resp.data[0].embedding
+    query_vector = embed_text_with_gemini(query_text)
     result = index.query(vector=query_vector, top_k=top_k, include_metadata=True)
     hits = []
     for match in result.get("matches", []):
@@ -52,6 +78,7 @@ def pinecone_query(openai_client: OpenAI, pc: Pinecone, index_name: str, query_t
             "text": text,
         })
     return hits
+
 
 def build_rag_prompt(user_question: str, retrieved: List[Dict], instructions: str = "You are a helpful legal assistant.") -> str:
     context_parts = []
@@ -71,14 +98,17 @@ def build_rag_prompt(user_question: str, retrieved: List[Dict], instructions: st
     )
     return prompt
 
-def query_openai_chat(openai_client: OpenAI, prompt: str, temperature: float = 0.0, max_tokens: int = 800) -> str:
-    chat_resp = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-    return chat_resp.choices[0].message.content.strip()
+
+def query_openai_chat(openai_client, prompt: str, temperature: float = 0.0, max_tokens: int = 800) -> str:
+    model = openai_client.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
+    text = getattr(response, "text", "")
+    if not text:
+        try:
+            text = response.candidates[0].content.parts[0].text
+        except Exception:
+            text = str(response)
+    return text.strip()
 
 def make_chat_title(messages: List[Dict]) -> str:
     if not messages:
@@ -158,7 +188,7 @@ def logout_all():
     if st.session_state.get("logged_in") and not st.session_state.get("is_guest") and st.session_state.get("user_email"):
         save_user_history(st.session_state.user_email, st.session_state.get("history", []))
     keys_to_clear = ["logged_in", "is_guest", "user_email", "user_name",
-                     "openai_client", "pc", "messages", "history",
+                     "gemini_client", "pc", "messages", "history",
                      "selected_history_idx", "nav_search", "show_signup", "page"]
     for k in keys_to_clear:
         if k in st.session_state:
@@ -317,12 +347,12 @@ if not st.session_state.get("logged_in", False):
         show_login_page()
 
 # -----------------------
-# Initialize OpenAI / Pinecone clients after login
+# Initialize Gemini / Pinecone clients after login
 # -----------------------
 try:
-    if "openai_client" not in st.session_state or "pc" not in st.session_state:
-        openai_client, pc = init_clients(GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_ENV)
-        st.session_state.openai_client = openai_client
+    if "gemini_client" not in st.session_state or "pc" not in st.session_state:
+        gemini_client, pc = init_clients(GEMINI_API_KEY, PINECONE_API_KEY, PINECONE_ENV)
+        st.session_state.gemini_client = gemini_client
         st.session_state.pc = pc
 except Exception as e:
     st.sidebar.error(f"Error initializing API clients: {e}")
@@ -452,18 +482,18 @@ with main_col:
         if q:
             st.session_state.messages.append({"role": "user", "text": q})
             try:
-                openai_client = st.session_state.get("openai_client")
+                gemini_client = st.session_state.get("gemini_client")
                 pc = st.session_state.get("pc")
-                if not openai_client or not pc:
+                if not gemini_client or not pc:
                     raise RuntimeError("Clients not initialized.")
-                retrieved = pinecone_query(openai_client, pc, INDEX_NAME, q, top_k=TOP_K)
+                retrieved = pinecone_query(gemini_client, pc, INDEX_NAME, q, top_k=TOP_K)
             except Exception as e:
                 st.session_state.messages.append({"role": "assistant", "text": f"Error retrieving sources: {e}"})
                 st.rerun()
 
             prompt = build_rag_prompt(q, retrieved)
             try:
-                answer = query_openai_chat(openai_client, prompt)
+                answer = query_openai_chat(gemini_client, prompt)
             except Exception as e:
                 st.session_state.messages.append({"role": "assistant", "text": f"Error from LLM: {e}"})
                 st.rerun()
