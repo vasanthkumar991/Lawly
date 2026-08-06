@@ -1,9 +1,0 @@
-PyMuPDF
-pinecone
-python-dotenv
-sentence-transformers
-tqdm
-
-sentence-transformers
-pinecone
-python-dotenv

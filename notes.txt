@@ -1,6 +1,0 @@
-Project notes
-
-- PDFs / text files are preprocessed before chunking.
-- Embeddings are generated and stored in a vector database.
-- Queries are matched against retrieved context and answered with citations.
-- Keep API keys in environment variables only; do not commit secrets.
